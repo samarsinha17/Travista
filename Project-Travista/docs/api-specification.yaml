@@ -1,0 +1,874 @@
+openapi: 3.1.0
+info:
+  title: AI Trip Planner API
+  description: Comprehensive travel planning and booking platform API
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: api@tripgenius.com
+
+servers:
+  - url: https://api.tripgenius.com/v1
+    description: Production server
+  - url: https://staging-api.tripgenius.com/v1
+    description: Staging server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      summary: Register new user
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, fullName]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                fullName:
+                  type: string
+                  minLength: 2
+                phone:
+                  type: string
+                referralCode:
+                  type: string
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  token:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/login:
+    post:
+      summary: User login
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  token:
+                    type: string
+                  refreshToken:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /ai/plan:
+    post:
+      summary: Generate AI trip itinerary
+      tags: [AI Planning]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [destination, startDate, endDate, travelers, budget]
+              properties:
+                destination:
+                  type: string
+                  description: Destination name or coordinates
+                startDate:
+                  type: string
+                  format: date
+                endDate:
+                  type: string
+                  format: date
+                travelers:
+                  type: integer
+                  minimum: 1
+                  maximum: 20
+                budget:
+                  type: object
+                  properties:
+                    min:
+                      type: number
+                    max:
+                      type: number
+                    currency:
+                      type: string
+                      default: INR
+                interests:
+                  type: array
+                  items:
+                    type: string
+                travelStyle:
+                  type: string
+                  enum: [relaxed, balanced, packed]
+                constraints:
+                  type: object
+                  properties:
+                    accessibility:
+                      type: boolean
+                    dietary:
+                      type: array
+                      items:
+                        type: string
+                    transport:
+                      type: array
+                      items:
+                        type: string
+      responses:
+        '200':
+          description: Itinerary variants generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tripId:
+                    type: string
+                    format: uuid
+                  variants:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ItineraryVariant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /trips:
+    get:
+      summary: Get user's trips
+      tags: [Trips]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, planned, confirmed, active, completed, cancelled]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of trips
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  trips:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Trip'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      summary: Create new trip
+      tags: [Trips]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTripRequest'
+      responses:
+        '201':
+          description: Trip created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trip'
+
+  /trips/{tripId}:
+    get:
+      summary: Get trip details
+      tags: [Trips]
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      responses:
+        '200':
+          description: Trip details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TripDetails'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /trips/{tripId}/itinerary:
+    get:
+      summary: Get trip itinerary
+      tags: [Itinerary]
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      responses:
+        '200':
+          description: Complete itinerary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Itinerary'
+
+    patch:
+      summary: Update itinerary
+      tags: [Itinerary]
+      parameters:
+        - $ref: '#/components/parameters/TripId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                days:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ItineraryDay'
+                lockedItems:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: Itinerary updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Itinerary'
+
+  /search/destinations:
+    get:
+      summary: Search destinations
+      tags: [Search]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 50
+      responses:
+        '200':
+          description: Destination search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  destinations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Destination'
+
+  /search/pois:
+    get:
+      summary: Search points of interest
+      tags: [Search]
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: near
+          in: query
+          schema:
+            type: string
+            description: "lat,lng coordinates"
+        - name: categories
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+        - name: budget
+          in: query
+          schema:
+            type: string
+            enum: [budget, mid, luxury]
+      responses:
+        '200':
+          description: POI search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pois:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/POI'
+
+  /bookings:
+    get:
+      summary: Get user's bookings
+      tags: [Bookings]
+      parameters:
+        - name: tripId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, confirmed, cancelled, completed]
+      responses:
+        '200':
+          description: List of bookings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bookings:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Booking'
+
+    post:
+      summary: Create booking
+      tags: [Bookings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBookingRequest'
+      responses:
+        '201':
+          description: Booking initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  booking:
+                    $ref: '#/components/schemas/Booking'
+                  paymentUrl:
+                    type: string
+                    format: uri
+
+  /reviews/poi/{poiId}:
+    get:
+      summary: Get POI reviews with AI summary
+      tags: [Reviews]
+      parameters:
+        - name: poiId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [recent, rating, helpful]
+            default: recent
+      responses:
+        '200':
+          description: Reviews with AI insights
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  aiSummary:
+                    $ref: '#/components/schemas/ReviewSummary'
+                  reviews:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Review'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    TripId:
+      name: tripId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        phone:
+          type: string
+        preferences:
+          type: object
+        currency:
+          type: string
+          default: INR
+        locale:
+          type: string
+          default: en-IN
+        createdAt:
+          type: string
+          format: date-time
+
+    Trip:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        destination:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        partySize:
+          type: integer
+        budget:
+          type: object
+          properties:
+            min:
+              type: number
+            max:
+              type: number
+            currency:
+              type: string
+        status:
+          type: string
+          enum: [draft, planned, confirmed, active, completed, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+
+    ItineraryVariant:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        totalCost:
+          type: number
+        currency:
+          type: string
+        highlights:
+          type: array
+          items:
+            type: string
+        pace:
+          type: string
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItineraryDay'
+
+    ItineraryDay:
+      type: object
+      properties:
+        dayNumber:
+          type: integer
+        date:
+          type: string
+          format: date
+        theme:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItineraryItem'
+        estimatedCost:
+          type: number
+
+    ItineraryItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        poi:
+          $ref: '#/components/schemas/POI'
+        type:
+          type: string
+          enum: [activity, meal, transport, accommodation]
+        startTime:
+          type: string
+          format: time
+        endTime:
+          type: string
+          format: time
+        estimatedCost:
+          type: number
+        isLocked:
+          type: boolean
+        notes:
+          type: string
+
+    POI:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        coordinates:
+          type: object
+          properties:
+            lat:
+              type: number
+            lng:
+              type: number
+        categories:
+          type: array
+          items:
+            type: string
+        averageRating:
+          type: number
+          minimum: 0
+          maximum: 5
+        reviewCount:
+          type: integer
+        priceRange:
+          type: string
+          enum: [budget, mid, expensive]
+
+    Destination:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        country:
+          type: string
+        region:
+          type: string
+        coordinates:
+          type: object
+          properties:
+            lat:
+              type: number
+            lng:
+              type: number
+        bestMonths:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+            maximum: 12
+        visaRequirements:
+          type: object
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tripId:
+          type: string
+          format: uuid
+        vendor:
+          type: string
+        type:
+          type: string
+          enum: [flight, hotel, activity, transport]
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled, completed]
+        amount:
+          type: number
+        currency:
+          type: string
+        confirmationCode:
+          type: string
+        documentsUrl:
+          type: string
+          format: uri
+
+    Review:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        poiId:
+          type: string
+          format: uuid
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        content:
+          type: string
+        aspects:
+          type: object
+          properties:
+            cleanliness:
+              type: number
+            service:
+              type: number
+            value:
+              type: number
+            atmosphere:
+              type: number
+        images:
+          type: array
+          items:
+            type: string
+            format: uri
+        isVerified:
+          type: boolean
+        helpfulVotes:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    ReviewSummary:
+      type: object
+      properties:
+        overallRating:
+          type: number
+        totalReviews:
+          type: integer
+        highlights:
+          type: array
+          items:
+            type: string
+        concerns:
+          type: array
+          items:
+            type: string
+        bestTime:
+          type: string
+        crowdLevel:
+          type: string
+          enum: [low, moderate, high]
+        aspectScores:
+          type: object
+          properties:
+            cleanliness:
+              type: number
+            service:
+              type: number
+            value:
+              type: number
+            atmosphere:
+              type: number
+
+    CreateTripRequest:
+      type: object
+      required: [title, destination, startDate, endDate, partySize]
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 100
+        destination:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        partySize:
+          type: integer
+          minimum: 1
+        budget:
+          type: object
+          properties:
+            min:
+              type: number
+            max:
+              type: number
+            currency:
+              type: string
+
+    CreateBookingRequest:
+      type: object
+      required: [tripId, vendorId, type, items]
+      properties:
+        tripId:
+          type: string
+          format: uuid
+        vendorId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [flight, hotel, activity, transport]
+        items:
+          type: array
+          items:
+            type: object
+        guestInfo:
+          type: object
+        paymentMethod:
+          type: object
+
+    TripDetails:
+      allOf:
+        - $ref: '#/components/schemas/Trip'
+        - type: object
+          properties:
+            itinerary:
+              $ref: '#/components/schemas/Itinerary'
+            bookings:
+              type: array
+              items:
+                $ref: '#/components/schemas/Booking'
+            collaborators:
+              type: array
+              items:
+                $ref: '#/components/schemas/User'
+
+    Itinerary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tripId:
+          type: string
+          format: uuid
+        isAiGenerated:
+          type: boolean
+        version:
+          type: integer
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItineraryDay'
+        totalCost:
+          type: number
+        currency:
+          type: string
+
+    Pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+        hasMore:
+          type: boolean
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

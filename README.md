@@ -1,9 +1,3 @@
-Perfect 👍 Since this is a **student/project showcase** and not a **published app/startup**, we’ll tone down business/production language and reframe it as a **prototype / learning project**. I’ll simplify and keep it professional so you can use it on GitHub or in your resume.
-
-Here’s the revised version:
-
----
-
 # 🧳 TripGenius – AI-Powered Travel Planner (Prototype Project)
 
 A prototype travel assistant built as a personal project to explore AI integration in trip planning. TripGenius demonstrates how AI can turn hours of research into minutes by generating itineraries, budgets, and recommendations through a mobile-first app. It is built with React Native for the frontend and Node.js/Express with PostgreSQL for the backend.
